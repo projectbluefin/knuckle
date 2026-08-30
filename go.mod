@@ -11,7 +11,7 @@ require (
 	github.com/ProtonMail/go-crypto v1.4.1
 	github.com/coreos/butane v0.29.0
 	github.com/coreos/vcontext v0.0.0-20260306102053-7a68b5426c74
-	golang.org/x/crypto v0.54.0
+	golang.org/x/crypto v0.55.0
 )
 
 require (
