@@ -341,11 +341,11 @@ printf 'default knuckle\ntimeout 5\neditor no\n' \
 
 # Primary entry: VGA console (tty0 is listed last so /dev/console -> tty0)
 # Serial output is still mirrored to ttyS0 for diagnostics.
-printf 'title   Knuckle \xe2\x80\x93 Install Flatcar Container Linux\nlinux   /vmlinuz\ninitrd  /initrd.img\noptions console=ttyS0,115200n8 console=tty0 systemd.gpt_auto=0\n' \
+printf 'title   Knuckle \xe2\x80\x93 Install Flatcar Container Linux\nlinux   /vmlinuz\ninitrd  /initrd.img\noptions console=ttyS0,115200n8 console=tty0 systemd.gpt_auto=0 rd.driver.pre=loop\n' \
     | mcopy -i "$EFI_IMG" - ::/loader/entries/knuckle.conf
 
 # Alternate entry: serial only (headless servers)
-printf 'title   Knuckle \xe2\x80\x93 Install Flatcar (serial console)\nlinux   /vmlinuz\ninitrd  /initrd.img\noptions console=ttyS0,115200n8 systemd.gpt_auto=0\n' \
+printf 'title   Knuckle \xe2\x80\x93 Install Flatcar (serial console)\nlinux   /vmlinuz\ninitrd  /initrd.img\noptions console=ttyS0,115200n8 systemd.gpt_auto=0 rd.driver.pre=loop\n' \
     | mcopy -i "$EFI_IMG" - ::/loader/entries/knuckle-serial.conf
 
 mcopy -i "$EFI_IMG" "$KERNEL"          ::/vmlinuz

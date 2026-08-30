@@ -28,6 +28,7 @@ journalctl -b --no-pager | tail -200
 
 - USB boots, but the installer never appears.
 - Boot stalls around disk/GPT probing.
+- Boot drops to an emergency shell after 10-15 seconds.
 
 ### Checks and fixes
 
@@ -36,10 +37,10 @@ journalctl -b --no-pager | tail -200
 3. At the systemd-boot menu, press `e` and ensure the kernel command line includes:
 
 ```text
-systemd.gpt_auto=0
+systemd.gpt_auto=0 rd.driver.pre=loop
 ```
 
-Knuckle's ISO entries already include this flag; adding it manually helps when firmware overrides boot options.
+Knuckle's ISO entries already include both flags; adding them manually helps when firmware overrides boot options.
 If your hardware only supports legacy BIOS/CSM, use the upstream Flatcar installation path instead of knuckle's ISO.
 
 ## 2) Target disk missing in Storage step
