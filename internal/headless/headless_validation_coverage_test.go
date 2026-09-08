@@ -14,7 +14,7 @@ import (
 // and error paths in Run().
 
 func TestValidate_StaticNetworkMissingAddress(t *testing.T) {
-	// Covers L257: static mode requires address
+	// Covers the shared static-network contract (validate.StaticNetwork):
 	cfg := &Config{
 		Channel:  "stable",
 		Hostname: "node01",
@@ -32,8 +32,8 @@ func TestValidate_StaticNetworkMissingAddress(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error for missing address in static mode")
 	}
-	if !strings.Contains(err.Error(), "static mode requires address") {
-		t.Errorf("expected 'static mode requires address' in error, got: %v", err)
+	if !strings.Contains(err.Error(), "static network requires an IP address") {
+		t.Errorf("expected 'static network requires an IP address' in error, got: %v", err)
 	}
 }
 
