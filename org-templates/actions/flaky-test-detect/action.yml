@@ -1,0 +1,49 @@
+name: "Flaky Test Detect"
+description: "Run the test suite N times and fail CI if any run fails, to catch flaky tests instead of silently ignoring them."
+author: "projectbluefin/knuckle"
+
+inputs:
+  run_count:
+    description: "How many times to run the suite. Knuckle uses 5."
+    required: false
+    default: "5"
+  test_cmd:
+    description: "The test command to run each pass. Knuckle uses 'go test -count=1 ./...'."
+    required: false
+    default: "go test -count=1 ./..."
+  fail_on_flake:
+    description: "Exit non-zero (fail CI) when a flake is detected. Set false to only warn."
+    required: false
+    default: "true"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Detect flaky tests
+      shell: bash
+      env:
+        RUN_COUNT: ${{ inputs.run_count }}
+        TEST_CMD: ${{ inputs.test_cmd }}
+        FAIL_ON_FLAKE: ${{ inputs.fail_on_flake }}
+      run: |
+        set -euo pipefail
+        flaky_detected=0
+        for i in $(seq 1 "$RUN_COUNT"); do
+          echo "────────────────────────────────────────"
+          echo "Run $i/$RUN_COUNT ..."
+          if ! eval "$TEST_CMD" > "/tmp/flake_run_$i.log" 2>&1; then
+            echo "::warning::Run $i failed — possible flaky test."
+            tail -n 20 "/tmp/flake_run_$i.log" || true
+            flaky_detected=1
+          fi
+        done
+        if [[ "$flaky_detected" -eq 1 ]]; then
+          if [[ "$FAIL_ON_FLAKE" == "true" ]]; then
+            echo "::error::Potential flaky tests detected — some runs failed. Check logs above."
+            echo "Failing CI so flaky tests are not silently ignored."
+            exit 1
+          fi
+          echo "::warning::Potential flaky tests detected (report-only mode)."
+          exit 0
+        fi
+        echo "✓ All $RUN_COUNT runs passed — no flaky tests detected"
