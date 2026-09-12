@@ -1220,13 +1220,21 @@ _install-shellcheck:
 [private]
 _ensure-base:
     #!/usr/bin/env bash
+    set -euo pipefail
+    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+    # shellcheck source=scripts/lib/verify-flatcar.sh
+    source "${SCRIPT_DIR}/scripts/lib/verify-flatcar.sh"
     mkdir -p .vm
     if [ ! -f ".vm/flatcar_base_{{KNUCKLE_ARCH}}.img" ]; then
         ARCH_DIR="{{KNUCKLE_ARCH}}-usr"
+        IMAGE_BZ2=".vm/flatcar_base_{{KNUCKLE_ARCH}}.img.bz2"
+        IMAGE_URL="https://stable.release.flatcar-linux.net/${ARCH_DIR}/current/flatcar_production_qemu_image.img.bz2"
         echo "Downloading Flatcar stable QEMU image for {{KNUCKLE_ARCH}} (one-time)..."
-        curl -L -o ".vm/flatcar_base_{{KNUCKLE_ARCH}}.img.bz2" \
-            "https://stable.release.flatcar-linux.net/${ARCH_DIR}/current/flatcar_production_qemu_image.img.bz2"
-        bunzip2 ".vm/flatcar_base_{{KNUCKLE_ARCH}}.img.bz2"
+        curl -L -o "$IMAGE_BZ2" "$IMAGE_URL"
+        # Verify GPG-signatured .DIGESTS + SHA512 before trusting the image that
+        # _write-ignition injects the developer SSH key into. Fail closed on mismatch.
+        verify_flatcar_file "$IMAGE_BZ2" "$IMAGE_URL" "flatcar_production_qemu_image.img.bz2"
+        bunzip2 "$IMAGE_BZ2"
     fi
 
 [private]
