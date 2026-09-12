@@ -30,7 +30,7 @@ while [[ $# -gt 0 ]]; do
         --arch)      ARCH="$2"; shift 2 ;;
         --binary=*)  BINARY_OVERRIDE="${1#--binary=}"; shift ;;
         --binary)    BINARY_OVERRIDE="$2"; shift 2 ;;
-        --require-verification) REQUIRE_VERIFICATION="1"; shift ;;
+        --require-verification) export REQUIRE_VERIFICATION="1"; shift ;;
         stable|beta|alpha|lts|edge) CHANNEL="$1"; shift ;;
         *) echo "Unknown argument: $1" >&2; exit 1 ;;
     esac
