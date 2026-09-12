@@ -9,7 +9,7 @@
       "pinDigests": true
     },
     {
-      "matchUpdateTypes": ["digest", "pin", "patch", "minor"],
+      "matchUpdateTypes": ["pin", "pinDigest"],
       "automerge": true
     }
   ]
