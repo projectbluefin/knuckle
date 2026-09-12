@@ -57,11 +57,19 @@ build-arm64:
 test:
     go test ./...
 
-# Tool versions — bump here and in .github/workflows/ci.yml together
+# Tool versions and checksums — bump here and in .github/workflows/ci.yml together
 GOLANGCI_LINT_VERSION := "2.12.2"
+GOLANGCI_LINT_SHA256_LINUX_AMD64 := "8df580d2670fed8fa984aac0507099af8df275e665215f5c7a2ae3943893a553"
+GOLANGCI_LINT_SHA256_LINUX_ARM64 := "44cd40a8c76c86755375adfeea52cfd3533cb43d7bd647771e0ae065e166df3a"
+GOLANGCI_LINT_SHA256_DARWIN_AMD64 := "f6f06d94b6241521c53d15450c5209b028270bf966f842afb11c030c79f5bc16"
+GOLANGCI_LINT_SHA256_DARWIN_ARM64 := "a9c54498731b3128f79e090be6110f3e5fffccc617b08142ed244d4126c73f29"
 GOLANGCI_LINT := ".tools/golangci-lint"
 
 SHELLCHECK_VERSION := "0.10.0"
+SHELLCHECK_SHA256_LINUX_AMD64 := "6c881ab0698e4e6ea235245f22832860544f17ba386442fe7e9d629f8cbedf87"
+SHELLCHECK_SHA256_LINUX_ARM64 := "324a7e89de8fa2aed0d0c28f3dab59cf84c6d74264022c00c22af665ed1a09bb"
+SHELLCHECK_SHA256_DARWIN_AMD64 := "ef27684f23279d112d8ad84e0823642e43f838993bbb8c0963db9b58a90464c2"
+SHELLCHECK_SHA256_DARWIN_ARM64 := "bbd2f14826328eee7679da7221f2bc3afb011f6a928b848c80c321f6046ddf81"
 SHELLCHECK := ".tools/shellcheck"
 
 # Install pinned tool binaries (idempotent — run once after clone, or after version bump)
@@ -1179,10 +1187,28 @@ _install-golangci-lint:
     mkdir -p .tools
     OS=$(uname -s | tr '[:upper:]' '[:lower:]')
     ARCH=$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')
+    case "${OS}-${ARCH}" in
+        linux-amd64) EXPECTED_SHA="{{GOLANGCI_LINT_SHA256_LINUX_AMD64}}" ;;
+        linux-arm64) EXPECTED_SHA="{{GOLANGCI_LINT_SHA256_LINUX_ARM64}}" ;;
+        darwin-amd64) EXPECTED_SHA="{{GOLANGCI_LINT_SHA256_DARWIN_AMD64}}" ;;
+        darwin-arm64) EXPECTED_SHA="{{GOLANGCI_LINT_SHA256_DARWIN_ARM64}}" ;;
+        *)
+            echo "Unsupported platform for golangci-lint: ${OS}-${ARCH}" >&2
+            exit 1
+            ;;
+    esac
     ARCHIVE="golangci-lint-{{GOLANGCI_LINT_VERSION}}-${OS}-${ARCH}.tar.gz"
     URL="https://github.com/golangci/golangci-lint/releases/download/v{{GOLANGCI_LINT_VERSION}}/$ARCHIVE"
+    TMPDIR=$(mktemp -d)
+    trap 'rm -rf "$TMPDIR"' EXIT
     echo "Downloading golangci-lint v{{GOLANGCI_LINT_VERSION}}..."
-    curl -sSfL "$URL" | tar -xzf - -C .tools \
+    curl -sSfL -o "$TMPDIR/$ARCHIVE" "$URL"
+    if command -v sha256sum >/dev/null 2>&1; then
+        echo "${EXPECTED_SHA}  $TMPDIR/$ARCHIVE" | sha256sum -c -
+    else
+        echo "${EXPECTED_SHA}  $TMPDIR/$ARCHIVE" | shasum -a 256 -c -
+    fi
+    tar -xzf "$TMPDIR/$ARCHIVE" -C .tools \
         --strip-components=1 \
         "golangci-lint-{{GOLANGCI_LINT_VERSION}}-${OS}-${ARCH}/golangci-lint"
     chmod +x "{{GOLANGCI_LINT}}"
@@ -1203,15 +1229,35 @@ _install-shellcheck:
     #!/usr/bin/env bash
     set -euo pipefail
     if [[ -x "{{SHELLCHECK}}" ]]; then
-        ver=$("{{SHELLCHECK}}" --version 2>&1 | grep -oP 'version \K[0-9.]+' || true)
+        ver=$("{{SHELLCHECK}}" --version 2>&1 | grep -oP 'version:\s*\K[0-9.]+' || true)
         [[ "$ver" == "{{SHELLCHECK_VERSION}}" ]] && exit 0
         echo "shellcheck version mismatch (got $ver, want {{SHELLCHECK_VERSION}}) — reinstalling"
     fi
     mkdir -p .tools
-    ARCH=$(uname -m)
-    URL="https://github.com/koalaman/shellcheck/releases/download/v{{SHELLCHECK_VERSION}}/shellcheck-v{{SHELLCHECK_VERSION}}.linux.${ARCH}.tar.xz"
+    OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+    ARCH=$(uname -m | sed 's/arm64/aarch64/')
+    case "${OS}-${ARCH}" in
+        linux-x86_64) EXPECTED_SHA="{{SHELLCHECK_SHA256_LINUX_AMD64}}" ;;
+        linux-aarch64) EXPECTED_SHA="{{SHELLCHECK_SHA256_LINUX_ARM64}}" ;;
+        darwin-x86_64) EXPECTED_SHA="{{SHELLCHECK_SHA256_DARWIN_AMD64}}" ;;
+        darwin-aarch64) EXPECTED_SHA="{{SHELLCHECK_SHA256_DARWIN_ARM64}}" ;;
+        *)
+            echo "Unsupported platform for shellcheck: ${OS}-${ARCH}" >&2
+            exit 1
+            ;;
+    esac
+    ARCHIVE="shellcheck-v{{SHELLCHECK_VERSION}}.${OS}.${ARCH}.tar.xz"
+    URL="https://github.com/koalaman/shellcheck/releases/download/v{{SHELLCHECK_VERSION}}/$ARCHIVE"
+    TMPDIR=$(mktemp -d)
+    trap 'rm -rf "$TMPDIR"' EXIT
     echo "Downloading shellcheck v{{SHELLCHECK_VERSION}}..."
-    curl -sSfL "$URL" | tar -xJf - -C .tools \
+    curl -sSfL -o "$TMPDIR/$ARCHIVE" "$URL"
+    if command -v sha256sum >/dev/null 2>&1; then
+        echo "${EXPECTED_SHA}  $TMPDIR/$ARCHIVE" | sha256sum -c -
+    else
+        echo "${EXPECTED_SHA}  $TMPDIR/$ARCHIVE" | shasum -a 256 -c -
+    fi
+    tar -xJf "$TMPDIR/$ARCHIVE" -C .tools \
         --strip-components=1 \
         "shellcheck-v{{SHELLCHECK_VERSION}}/shellcheck"
     chmod +x "{{SHELLCHECK}}"

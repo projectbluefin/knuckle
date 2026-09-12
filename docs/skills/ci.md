@@ -66,7 +66,7 @@ To add a package to cover-check, add a line to the `cover-check` recipe in `Just
 ## Tool Version Bumps
 
 Always update **both** locations together:
-- `GOLANGCI_LINT_VERSION` in `Justfile`
+- `GOLANGCI_LINT_VERSION` and SHA256 checksums in `Justfile`
 - `golangci-lint-version` in `.github/workflows/ci.yml`
 
 ```bash

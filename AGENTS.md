@@ -186,7 +186,7 @@ Before tagging any release, use [`docs/RELEASE.md`](docs/RELEASE.md) as the cano
 # Dependency bumps
 go get -u ./... && go mod tidy && just ci && just vm
 
-# Tool version bumps — update GOLANGCI_LINT_VERSION in Justfile AND .github/workflows/ci.yml together
+# Tool version bumps — update GOLANGCI_LINT_VERSION and checksums in Justfile AND .github/workflows/ci.yml together
 just tools && just ci
 
 # Go toolchain bump — update ALL THREE together:
