@@ -1,0 +1,28 @@
+# Example per-package coverage gate config.
+# Copy to coverage-gate.toml (or pass --config) and adjust thresholds to your
+# repo. Format: one `package:threshold` per line. Package paths are passed to
+# `go test` verbatim as `<pkg>/...` (use "." for the module root). Thresholds
+# are whole percentages 0-100. Lines starting with # and blank lines are ignored.
+#
+# Gates are set conservatively BELOW current coverage so CI fails on
+# regression, not on aspirational drift (see knuckle docs/CI-AND-TESTING.md).
+#
+# This is knuckle's own gate, exported as a reusable template.
+internal/model:100
+internal/validate:99
+internal/ignition:100
+internal/github:96
+internal/bakery:100
+internal/probe:100
+internal/runner:100
+internal/install:100
+internal/headless:99
+internal/wizard:99
+internal/iso:100
+internal/tui:99
+internal/demo:100
+internal/fcos:100
+scripts/catalog_check:100
+cmd/knuckle:85
+cmd/compile-butane-fresh:100
+cmd/nvidia-check:95

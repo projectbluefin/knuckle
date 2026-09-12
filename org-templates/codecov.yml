@@ -1,0 +1,44 @@
+# Standardized Codecov config template for org repos.
+#
+# Adopted from knuckle's codecov.yml. Thresholds are set to the org floor
+# (project >= 70%, patch >= 70%) rather than knuckle's stricter 95%/85% —
+# knuckle already meets those; other repos start at the floor and raise their
+# own gates over time. Keep both status checks NON-informational so Codecov
+# blocks/flags the check when the thresholds are missed.
+#
+# Copy to codecov.yml at your repo root. See
+# https://docs.codecov.com/docs/codecov-yaml for the full schema.
+
+codecov:
+  require_ci_to_pass: false
+  notify:
+    after_n_builds: 1
+
+coverage:
+  precision: 2
+  round: down
+  range: "70...100"
+  status:
+    # Overall project coverage. informational: false => this is a required,
+    # blocking status check. Set to >=70% org floor; raise per repo.
+    project:
+      default:
+        target: 70%
+        threshold: 1%
+        informational: false
+    # Coverage of changed lines in the diff. Blocks merges that add
+    # untested code.
+    patch:
+      default:
+        target: 70%
+        informational: false
+
+  # Per-file ceilings stop a tiny untested helper from tanking the project
+  # number; set informational: true to only warn, or remove entirely.
+  changes:
+    informational: true
+
+comment:
+  layout: "reach,diff,flags,files"
+  behavior: default
+  require_changes: true
