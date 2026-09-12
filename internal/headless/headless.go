@@ -276,29 +276,18 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("network mode: must be \"dhcp\" or \"static\" (got %q)", c.Network.Mode)
 	}
 
-	// Network (static mode validation)
+	// Network (static mode validation) — same contract as the wizard and
+	// CheckConsistency via validate.StaticNetwork. In particular the gateway
+	// is required, so a config that Validate() accepts cannot later be
+	// rejected by the consistency gate in Run.
 	if c.Network.Mode == "static" {
-		if c.Network.Interface == "" {
-			return fmt.Errorf("network: static mode requires interface name")
-		}
-		if err := validate.InterfaceName(c.Network.Interface); err != nil {
-			return fmt.Errorf("network interface: %w", err)
-		}
-		if c.Network.Address == "" {
-			return fmt.Errorf("network: static mode requires address")
-		}
-		if err := validate.CIDR(c.Network.Address); err != nil {
-			return fmt.Errorf("network address: %w", err)
-		}
-		if c.Network.Gateway != "" {
-			if err := validate.IPAddress(c.Network.Gateway); err != nil {
-				return fmt.Errorf("network gateway: %w", err)
-			}
-		}
-		for _, dns := range c.Network.DNS {
-			if err := validate.IPAddress(dns); err != nil {
-				return fmt.Errorf("DNS server %q: %w", dns, err)
-			}
+		if err := validate.StaticNetwork(model.NetworkConfig{
+			Interface: c.Network.Interface,
+			Address:   c.Network.Address,
+			Gateway:   c.Network.Gateway,
+			DNS:       c.Network.DNS,
+		}); err != nil {
+			return err
 		}
 	}
 

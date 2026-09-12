@@ -261,20 +261,7 @@ func (w *Wizard) validateWelcome() error {
 func (w *Wizard) validateNetwork() error {
 	cfg := w.State.Config.Network
 	if cfg.Mode == model.NetworkStatic {
-		if err := validate.InterfaceName(cfg.Interface); err != nil {
-			return fmt.Errorf("network interface: %w", err)
-		}
-		if err := validate.CIDR(cfg.Address); err != nil {
-			return fmt.Errorf("network address: %w", err)
-		}
-		if err := validate.Gateway(cfg.Gateway); err != nil {
-			return fmt.Errorf("gateway: %w", err)
-		}
-		for _, dns := range cfg.DNS {
-			if err := validate.DNSServer(dns); err != nil {
-				return fmt.Errorf("DNS server: %w", err)
-			}
-		}
+		return validate.StaticNetwork(cfg)
 	}
 	return nil
 }

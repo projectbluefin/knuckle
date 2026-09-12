@@ -1661,6 +1661,7 @@ func TestValidate_StaticNetworkInvalidInterfaceName(t *testing.T) {
 			Mode:      "static",
 			Interface: "bad interface name!",
 			Address:   "192.168.1.10/24",
+			Gateway:   "192.168.1.1",
 		},
 		Users: []UserConfig{{Username: "core", SSHKeys: []string{"ssh-ed25519 AAAAC3Nz k"}}},
 	}
@@ -1681,6 +1682,7 @@ func TestValidate_StaticNetworkInvalidCIDRAddress(t *testing.T) {
 			Mode:      "static",
 			Interface: "eth0",
 			Address:   "not-a-cidr",
+			Gateway:   "192.168.1.1",
 		},
 		Users: []UserConfig{{Username: "core", SSHKeys: []string{"ssh-ed25519 AAAAC3Nz k"}}},
 	}
@@ -1840,9 +1842,12 @@ func TestToInstallConfig_NonNilSwap(t *testing.T) {
 	}
 }
 
-func TestRun_ConsistencyCheckFails(t *testing.T) {
-	// A static-network config passes Validate() (gateway is optional there)
-	// but fails validate.CheckConsistency() which requires a gateway.
+func TestRun_StaticNetworkWithoutGatewayFailsValidation(t *testing.T) {
+	// Static mode requires a gateway at the first validation gate —
+	// validate.StaticNetwork is the shared contract for Validate(),
+	// the wizard network step, and validate.CheckConsistency, so a
+	// gateway-less config can no longer pass Validate() only to be
+	// rejected later by CheckConsistency.
 	cfg := &Config{
 		Channel: "stable",
 		Disk:    "/dev/vdb",
@@ -1850,7 +1855,7 @@ func TestRun_ConsistencyCheckFails(t *testing.T) {
 			Mode:      "static",
 			Interface: "eth0",
 			Address:   "192.168.1.10/24",
-			// Gateway intentionally omitted — passes Validate but fails CheckConsistency
+			// Gateway intentionally omitted — rejected by Validate
 		},
 		Users:  []UserConfig{{Username: "core", SSHKeys: []string{"ssh-ed25519 AAAAC3Nz k"}}},
 		DryRun: true,
@@ -1860,13 +1865,13 @@ func TestRun_ConsistencyCheckFails(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
 	err := Run(context.Background(), cfg, installer, logger)
 	if err == nil {
-		t.Fatal("expected consistency check error for static network without gateway")
+		t.Fatal("expected validation error for static network without gateway")
 	}
-	if !strings.Contains(err.Error(), "consistency check") {
-		t.Errorf("error should mention 'consistency check', got: %v", err)
+	if !strings.Contains(err.Error(), "static network requires a gateway") {
+		t.Errorf("error should mention 'static network requires a gateway', got: %v", err)
 	}
 	if installer.called {
-		t.Error("installer should not be called after consistency failure")
+		t.Error("installer should not be called after validation failure")
 	}
 }
 
