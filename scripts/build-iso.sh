@@ -30,7 +30,7 @@ while [[ $# -gt 0 ]]; do
         --arch)      ARCH="$2"; shift 2 ;;
         --binary=*)  BINARY_OVERRIDE="${1#--binary=}"; shift ;;
         --binary)    BINARY_OVERRIDE="$2"; shift 2 ;;
-        --require-verification) REQUIRE_VERIFICATION="1"; shift ;;
+        --require-verification) export REQUIRE_VERIFICATION="1"; shift ;;
         stable|beta|alpha|lts|edge) CHANNEL="$1"; shift ;;
         *) echo "Unknown argument: $1" >&2; exit 1 ;;
     esac
@@ -51,6 +51,11 @@ fi
 # ── Paths ────────────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Flatcar artifact verification (SHA512 + GPG-clearsigned .DIGESTS.asc) shared
+# with the Justfile _ensure-base recipe. Sourcing keeps a single verified copy.
+# shellcheck source=scripts/lib/verify-flatcar.sh
+source "$SCRIPT_DIR/lib/verify-flatcar.sh"
 BUILD_DIR="$ROOT_DIR/.iso-build"
 OUTPUT_DIR="$ROOT_DIR/output"
 
@@ -117,102 +122,9 @@ else
     echo "[1/5] Using existing knuckle binary: $BINARY"
 fi
 
-# ── verify_pxe_file: SHA512 + GPG verification for a downloaded PXE file ──────
-# Usage: verify_pxe_file <local_file> <upstream_base_url> <upstream_filename>
-# Fetches <url>.DIGESTS and <url>.DIGESTS.asc, verifies the GPG signature against
-# the embedded Flatcar release key, then confirms the SHA512 of the local file.
-# Exits non-zero on GPG or SHA512 mismatch. Skips verification if DIGESTS is
-# unreachable — unless REQUIRE_VERIFICATION=1 (--require-verification), which
-# makes any missing/unverifiable metadata a hard error (used by release builds).
-FLATCAR_KEY="$ROOT_DIR/internal/bakery/keys/flatcar-signing.asc"
-verify_pxe_file() {
-    local local_file="$1"
-    local upstream_url="$2"
-    local upstream_name="$3"
-
-    local digests_url="${upstream_url}.DIGESTS"
-    local asc_url="${digests_url}.asc"
-    local tmp_dir
-    tmp_dir="$(mktemp -d)"
-    local digests_file="$tmp_dir/DIGESTS"
-    local asc_file="$tmp_dir/DIGESTS.asc"
-
-    # Fetch DIGESTS (soft-fail if unavailable — CDN may not publish per-file digests)
-    if ! curl -fsSL --max-time 30 -o "$digests_file" "$digests_url" 2>/dev/null; then
-        rm -rf "$tmp_dir"
-        if [[ "$REQUIRE_VERIFICATION" == "1" ]]; then
-            echo "error: DIGESTS not available for $upstream_name and --require-verification is set" >&2
-            exit 1
-        fi
-        echo "  ⚠ DIGESTS not available for $upstream_name — skipping verification" >&2
-        return 0
-    fi
-
-    # GPG signature verification.
-    # Flatcar .DIGESTS.asc is a clearsigned message (PGP SIGNED MESSAGE, not a
-    # detached signature), so we use --decrypt which verifies and extracts the
-    # content in one step.  We then use the verified content for the SHA512 check
-    # instead of the separately downloaded unsigned .DIGESTS file.
-    if curl -fsSL --max-time 30 -o "$asc_file" "$asc_url" 2>/dev/null; then
-        local gpg_home="$tmp_dir/gnupg"
-        local verified_digests="$tmp_dir/DIGESTS.verified"
-        mkdir -p "$gpg_home"
-        chmod 700 "$gpg_home"
-        GNUPGHOME="$gpg_home" gpg --quiet --import "$FLATCAR_KEY" 2>/dev/null
-        if ! GNUPGHOME="$gpg_home" gpg --quiet --decrypt "$asc_file" > "$verified_digests" 2>/dev/null; then
-            rm -rf "$tmp_dir"
-            echo "error: GPG signature verification failed for $upstream_name" >&2
-            exit 1
-        fi
-        echo "  ✓ GPG signature verified: $upstream_name"
-        # Use the verified (signature-checked) content for the SHA512 lookup.
-        digests_file="$verified_digests"
-    else
-        if [[ "$REQUIRE_VERIFICATION" == "1" ]]; then
-            rm -rf "$tmp_dir"
-            echo "error: .DIGESTS.asc unavailable for $upstream_name and --require-verification is set — refusing to trust unsigned DIGESTS" >&2
-            exit 1
-        fi
-        echo "  ⚠ .DIGESTS.asc unavailable — GPG check skipped for $upstream_name" >&2
-    fi
-
-    # SHA512 verification against the DIGESTS file (filename-bound, not just hash)
-    local insha512=0 expected_hash=""
-    while IFS= read -r line; do
-        if [[ "$line" == "# SHA512 HASH" ]]; then
-            insha512=1; continue
-        fi
-        if [[ "$line" =~ ^# ]]; then
-            insha512=0; continue
-        fi
-        if [[ "$insha512" -eq 1 && -n "$line" ]]; then
-            local hash fname
-            hash="${line%%  *}"
-            fname="${line##*  }"
-            if [[ "$fname" == "$upstream_name" ]]; then
-                expected_hash="$hash"
-                break
-            fi
-        fi
-    done < "$digests_file"
-
-    if [[ -z "$expected_hash" ]]; then
-        rm -rf "$tmp_dir"
-        echo "error: SHA512 for $upstream_name not found in DIGESTS" >&2
-        exit 1
-    fi
-
-    local actual_hash
-    actual_hash="$(sha512sum "$local_file" | awk '{print $1}')"
-    if [[ "$actual_hash" != "$expected_hash" ]]; then
-        rm -rf "$tmp_dir"
-        echo "error: SHA512 mismatch for $upstream_name (expected $expected_hash, got $actual_hash)" >&2
-        exit 1
-    fi
-    echo "  ✓ SHA512 verified: $upstream_name"
-
-    rm -rf "$tmp_dir"
-}
+# ── verify_flatcar_file: SHA512 + GPG verification for a downloaded Flatcar ──
+# Implementation lives in scripts/lib/verify-flatcar.sh and is shared with the
+# Justfile _ensure-base recipe. See that file for the full contract.
 
 # ── 2. Download Flatcar PXE artifacts ────────────────────────────────────────
 mkdir -p "$BUILD_DIR"
@@ -223,11 +135,11 @@ INITRD="$BUILD_DIR/initrd.cpio.gz"
 
 if [[ ! -f "$KERNEL" ]]; then
     curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -o "$KERNEL" "$BASE_URL/flatcar_production_pxe.vmlinuz"
-    verify_pxe_file "$KERNEL" "$BASE_URL/flatcar_production_pxe.vmlinuz" "flatcar_production_pxe.vmlinuz"
+    verify_flatcar_file "$KERNEL" "$BASE_URL/flatcar_production_pxe.vmlinuz" "flatcar_production_pxe.vmlinuz"
 fi
 if [[ ! -f "$INITRD" ]]; then
     curl -fsSL --retry 3 --retry-delay 5 --retry-all-errors -o "$INITRD" "$BASE_URL/flatcar_production_pxe_image.cpio.gz"
-    verify_pxe_file "$INITRD" "$BASE_URL/flatcar_production_pxe_image.cpio.gz" "flatcar_production_pxe_image.cpio.gz"
+    verify_flatcar_file "$INITRD" "$BASE_URL/flatcar_production_pxe_image.cpio.gz" "flatcar_production_pxe_image.cpio.gz"
 fi
 
 echo "  kernel : $(du -h "$KERNEL"  | cut -f1)"
