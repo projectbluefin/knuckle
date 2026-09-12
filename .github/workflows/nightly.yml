@@ -65,7 +65,13 @@ jobs:
         id: setup-just-action
       - name: install just (fallback)
         if: steps.setup-just-action.outcome == 'failure'
-        run: curl -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
+        run: |
+          JUST_VERSION=1.58.0
+          JUST_SHA256=4a5cc2f53e6f0f8c59092a6cc38291eb729d46a7dd95d3ae582008881b84931d
+          curl -fsSL -o /tmp/just.tar.gz "https://github.com/casey/just/releases/download/${JUST_VERSION}/just-${JUST_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+          echo "${JUST_SHA256}  /tmp/just.tar.gz" | sha256sum -c -
+          sudo tar -xzf /tmp/just.tar.gz -C /usr/local/bin just
+          rm /tmp/just.tar.gz
 
       - name: per-package coverage gate
         run: just cover-check
