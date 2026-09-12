@@ -17,7 +17,7 @@ set -u
 
 BINARY=""
 for candidate in "bin/knuckle" "./knuckle"; do
-    if [[ -f "$candidate" ]]; then
+    if [[ -x "$candidate" ]]; then
         BINARY="$candidate"
         break
     fi
@@ -29,6 +29,7 @@ fi
 
 FIFO=$(mktemp -u)
 mkfifo "$FIFO"
+trap 'rm -f "$FIFO"' EXIT
 
 # --demo: mock hardware/catalog, implies --dry-run (no real writes)
 "$BINARY" --demo < "$FIFO" &
