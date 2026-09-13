@@ -53,14 +53,24 @@ jobs:
           restore-keys: |
             flatcar-qemu-stable-amd64-
 
-      - name: Download Flatcar base image
+      - name: Download + verify Flatcar base image
         if: steps.cache-flatcar.outputs.cache-hit != 'true'
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p .vm
-          curl -fsSL -o .vm/flatcar_base_amd64.img.bz2 \
-            https://stable.release.flatcar-linux.net/amd64-usr/current/flatcar_production_qemu_image.img.bz2
+          IMAGE_URL="https://stable.release.flatcar-linux.net/amd64-usr/current/flatcar_production_qemu_image.img.bz2"
+          curl -fsSL -o .vm/flatcar_base_amd64.img.bz2 "$IMAGE_URL"
+          # Fail-closed integrity check: GPG-verify the clearsigned .DIGESTS.asc
+          # against the embedded Flatcar signing key, then check the SHA512 of
+          # the .bz2 before trusting the image that the dhcp/static/sysext/
+          # nvidia jobs boot under KVM. Same helper as scripts/build-iso.sh and
+          # the Justfile _ensure-base recipe. REQUIRE_VERIFICATION=1 makes any
+          # missing/unverifiable digest a hard failure (stable publishes
+          # digests for every release, so CI never needs the soft fallback).
+          export REQUIRE_VERIFICATION=1
+          source scripts/lib/verify-flatcar.sh
+          verify_flatcar_file ".vm/flatcar_base_amd64.img.bz2" "$IMAGE_URL" "flatcar_production_qemu_image.img.bz2"
           bunzip2 .vm/flatcar_base_amd64.img.bz2
 
   dhcp:
