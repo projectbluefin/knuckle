@@ -449,7 +449,7 @@ func (m *Model) maxCursor() int {
 	switch m.Wizard.State.CurrentStep {
 	case model.StepWelcome:
 		if m.osSubView {
-			return 3 // Flatcar | FCOS | Bluefin Server
+			return len(model.OSTargetIDs())
 		}
 		return m.channelCardCount()
 	case model.StepStorage:
@@ -475,8 +475,9 @@ func (m *Model) handleEnter() (tea.Model, tea.Cmd) {
 	switch step {
 	case model.StepWelcome:
 		if m.osSubView {
-			// OS picker — cursor 0 = Flatcar, cursor 1 = FCOS, cursor 2 = Bluefin Server
-			osList := []string{model.OSFlatcar, model.OSFCOS, model.OSBluefinDDI}
+			// Cursor indexes the same roster the picker renders — see
+			// model.OSTargets().
+			osList := model.OSTargetIDs()
 			if m.cursor >= 0 && m.cursor < len(osList) {
 				m.Wizard.State.Config.OS = osList[m.cursor]
 			}

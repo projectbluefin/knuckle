@@ -56,6 +56,74 @@ const (
 	OSBluefinDDI = "bluefin-ddi"
 )
 
+// OSTarget is one entry in the roster of OS targets knuckle can install.
+//
+// The roster is the single source of truth for *which* OS targets exist and in
+// *what order* they are offered. It previously lived as three hand-written
+// literal lists — the constants above, the picker cards rendered by the TUI,
+// and the ID slice the TUI indexed with the picker cursor — with nothing tying
+// them together. Because the rendered list and the selection list were indexed
+// by the same cursor, reordering or inserting into one and not the other made
+// the installer act on a different OS than the card the user highlighted.
+type OSTarget struct {
+	// ID is the value written to InstallConfig.OS.
+	ID string
+	// Name is the short label shown in the OS picker.
+	Name string
+	// Description is the one-line explanation shown beneath Name.
+	Description string
+}
+
+// osTargets is the ordered roster. Order is the presentation order of the OS
+// picker and therefore the meaning of the picker cursor; changing it changes
+// the UI, so change it here and nowhere else.
+var osTargets = []OSTarget{
+	{
+		ID:          OSFlatcar,
+		Name:        "Flatcar Container Linux",
+		Description: "Immutable, container-optimised Linux. Ideal for Kubernetes nodes and edge workloads.",
+	},
+	{
+		ID:          OSFCOS,
+		Name:        "Fedora CoreOS",
+		Description: "Fedora's immutable, auto-updating container host. Based on rpm-ostree with Ignition provisioning.",
+	},
+	{
+		ID:          OSBluefinDDI,
+		Name:        "Install Bluefin Server",
+		Description: "systemd-native DDI image installer. Partitions, provisions users, and installs the bootloader via systemd-repart.",
+	},
+}
+
+// OSTargets returns a copy of the ordered OS target roster.
+func OSTargets() []OSTarget {
+	out := make([]OSTarget, len(osTargets))
+	copy(out, osTargets)
+	return out
+}
+
+// OSTargetIDs returns the roster's IDs in presentation order. A cursor into the
+// rendered picker indexes this slice, so the two cannot disagree.
+func OSTargetIDs() []string {
+	out := make([]string, len(osTargets))
+	for i, t := range osTargets {
+		out[i] = t.ID
+	}
+	return out
+}
+
+// IsKnownOS reports whether id names a registered OS target. The empty string
+// is not a registered target; callers that treat "" as "default to Flatcar"
+// must say so themselves.
+func IsKnownOS(id string) bool {
+	for _, t := range osTargets {
+		if t.ID == id {
+			return true
+		}
+	}
+	return false
+}
+
 // InstallConfig is the complete installation configuration built by the wizard.
 type InstallConfig struct {
 	OS                  string // "flatcar" | "fcos"; defaults to "flatcar" for backward compatibility
