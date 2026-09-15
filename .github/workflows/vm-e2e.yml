@@ -265,7 +265,10 @@ jobs:
           printf '{"ignition":{"version":"3.4.0"},"passwd":{"users":[{"name":"core","sshAuthorizedKeys":["%s"]}]},"systemd":{"units":[{"name":"sshd.service","enabled":true}]}}\n' \
             "$E2E_PUB" > .vm/e2e-installer.ign
 
-          printf '{"channel":"stable","hostname":"e2e-static","timezone":"UTC","network":{"mode":"static","interface":"ens3","address":"10.0.2.15/24","gateway":"10.0.2.2"},"users":[{"username":"core","ssh_keys":["%s"]}],"disk":"/dev/vdb","update_strategy":"off","reboot":false}\n' \
+          # Flatcar names the QEMU virtio-net device eth0 (not ens3); the static
+          # .network Match must use it, else the static IP never comes up and the
+          # target has no address for the hostfwd:2222 -> :22 SSH forward.
+          printf '{"channel":"stable","hostname":"e2e-static","timezone":"UTC","network":{"mode":"static","interface":"eth0","address":"10.0.2.15/24","gateway":"10.0.2.2"},"users":[{"username":"core","ssh_keys":["%s"]}],"disk":"/dev/vdb","update_strategy":"off","reboot":false}\n' \
             "$E2E_PUB" > .vm/e2e-static-config.json
 
           qemu-system-x86_64 "${QEMU_ARGS[@]}" \
@@ -319,6 +322,8 @@ jobs:
           GW=$($E2E_SSH "grep ^Gateway= /etc/systemd/network/10-static.network" | cut -d= -f2) || true
           [ "$ADDR" = "10.0.2.15/24" ] || { echo "❌ address '$ADDR' != '10.0.2.15/24'"; exit 1; }
           [ "$GW" = "10.0.2.2" ] || { echo "❌ gateway '$GW' != '10.0.2.2'"; exit 1; }
+          $E2E_SSH "ip -4 -o addr show" | grep -q "10.0.2.15/24" \
+            || { echo "❌ static address not on any interface"; exit 1; }
           echo "✓ static network: address=$ADDR gateway=$GW"
 
           kill "$(cat .vm/qemu-target.pid)" 2>/dev/null || true
