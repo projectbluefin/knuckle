@@ -225,7 +225,7 @@ Generate Ignition via headless --dry-run (writes /tmp/knuckle-ignition-preview.j
 cat > $WORKDIR/ignition-test.json <<'EOF'
 {
   "channel": "stable", "hostname": "ign-verify", "timezone": "America/New_York",
-  "network": {"mode": "static", "interface": "ens3",
+  "network": {"mode": "static", "interface": "eth0",
               "address": "10.0.2.15/24", "gateway": "10.0.2.2"},
   "users": [{"username": "core", "ssh_keys": ["SSH_PUB_PLACEHOLDER"]}],
   "disk": "/dev/vdb", "update_strategy": "off", "reboot": false
@@ -442,7 +442,7 @@ by every headless run. Add a second config variant to cover wizard branches:
 # Config 2: static network (covers network wizard branch)
 cat > $WORKDIR/headless-static.json <<EOF
 {"channel":"stable","hostname":"wiz-static","timezone":"UTC",
- "network":{"mode":"static","interface":"ens3","address":"10.0.2.15/24","gateway":"10.0.2.2"},
+ "network":{"mode":"static","interface":"eth0","address":"10.0.2.15/24","gateway":"10.0.2.2"},
  "users":[{"username":"core","ssh_keys":["$E2E_PUB"]}],
  "disk":"/dev/vdb","update_strategy":"off","reboot":false}
 EOF

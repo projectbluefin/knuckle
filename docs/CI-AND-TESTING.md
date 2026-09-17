@@ -271,8 +271,8 @@ intervention required). Each pass builds a fresh overlay image, installs via
 | NVIDIA        | DHCP + NVIDIA GPU config (emulated)       | `/etc/sysupdate.d/nv-*.conf` present, kernel module config | 15m |
 
 The static pass uses QEMU's slirp NAT subnet so SSH port-forwarding still works
-even with a static IP configured inside the VM. Interface name is currently
-hardcoded to `ens3` — may need `eth0` on some Flatcar versions (open issue).
+even with a static IP configured inside the VM. Flatcar names the QEMU
+virtio-net device `eth0`, so the interface is set to `eth0`.
 
 ## Hardware-like Repro
 
@@ -353,6 +353,5 @@ Tracked in `docs/REVIEW-2026-05-19.md` (passes 1-2) and session notes from
 - Land `FuzzHostname`, `FuzzCIDR`, `FuzzSSHKey` and run with `-fuzztime=30s`
   in a nightly job.
 - N-SEC1 MEDIUM: add max-length check on sysext download URLs in `bakery.go`.
-- Verify `ens3` vs `eth0` interface name in static-network vm-e2e pass.
 - Add fixture gaps: `lsblk-empty.json`, `lsblk-all-removable.json`,
   `ip_addr-ipv6-only.json`, `bakery-malformed-digests` (from QA review).
