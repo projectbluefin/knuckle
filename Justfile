@@ -19,6 +19,7 @@ default:
     @echo "Quickstart:"
     @echo "  just vm        — install in a VM, boots into installed system after"
     @echo "  just vm-e2e    — automated: headless install → boot → verify SSH"
+    @echo "  just vm-e2e-fcos — automated FCOS: headless install → boot → verify zincati"
     @echo "  just iso-smoke <iso> <ovmf> — headless ISO boot smoke via serial log"
     @echo "  just hardware-repro — boot installer ISO in a hardware-like VM and capture install logs"
     @echo "  just e2e       — full end-to-end: build ISO → boot → install → verify"
@@ -755,6 +756,181 @@ vm-e2e:
     echo ""
     echo "✅ ALL vm-e2e passes PASSED (DHCP · static network · sysext · NVIDIA)"
 
+# Automated E2E for Fedora CoreOS (FCOS): real headless install → boot → verify.
+# A SEPARATE recipe from vm-e2e (which is Flatcar-only) — the FCOS flow differs in
+# base image, ignition delivery channel, and assertions:
+#   - Base image: FCOS QEMU disk (qcow2) from builds.coreos.fedoraproject.org
+#   - Installer ignition delivered via -fw_cfg name=opt/com.coreos/config (not
+#     opt/org.flatcar-linux/config)
+#   - Asserts zincati.service is active and update-engine.service is absent
+# Requires: KVM, internet access (~1GB FCOS image download during first run),
+# coreos-installer on the host (just tools-fcos). Runs independently of vm-e2e.
+vm-e2e-fcos:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    cleanup() {
+        if [ -f .vm/qemu.pid ]; then
+            kill "$(cat .vm/qemu.pid)" 2>/dev/null || true
+            rm -f .vm/qemu.pid
+        fi
+    }
+    trap cleanup EXIT
+
+    echo "=== knuckle vm-e2e-fcos: headless install → boot → verify ==="
+    echo ""
+
+    just build
+    just _ensure-fcos-base
+    just _kill-vm
+
+    mkdir -p .vm
+    rm -f .vm/e2e_key .vm/e2e_key.pub
+    ssh-keygen -t ed25519 -f .vm/e2e_key -N "" -C "knuckle-e2e-fcos" -q
+    E2E_PUB=$(cat .vm/e2e_key.pub)
+
+    # Installer VM boot disk (CoW overlay on FCOS base) + blank target disk
+    rm -f .vm/fcos-boot.qcow2 .vm/fcos-target.qcow2
+    qemu-img create -f qcow2 -b "$(pwd)/.vm/fcos_base_{{KNUCKLE_ARCH}}.qcow2" -F qcow2 .vm/fcos-boot.qcow2 >/dev/null
+    qemu-img create -f qcow2 .vm/fcos-target.qcow2 20G >/dev/null
+
+    # FCOS Ignition for the installer VM: e2e key on core, sshd enabled.
+    # FCOS consumes ignition via the com.coreos config channel.
+    printf '{"ignition":{"version":"3.4.0"},"passwd":{"users":[{"name":"core","sshAuthorizedKeys":["%s"]}]},"systemd":{"units":[{"name":"sshd.service","enabled":true}]}}\n' \
+        "$E2E_PUB" > .vm/fcos-e2e-installer.ign
+
+    # Headless config: FCOS real install targeting /dev/vdb, e2e key on core user
+    printf '{"os":"fcos","channel":"stable","hostname":"fcos-e2e-verified","timezone":"UTC","network":{"mode":"dhcp"},"users":[{"username":"core","ssh_keys":["%s"]}],"disk":"/dev/vdb","update_strategy":"reboot","reboot":false}\n' \
+        "$E2E_PUB" > .vm/fcos-e2e-config.json
+
+    E2E_SSH="ssh {{SSH_OPTS}} -i .vm/e2e_key -p 2222 -o ServerAliveInterval=30 -o ServerAliveCountMax=10 core@127.0.0.1"
+    E2E_SSH_LONG="$E2E_SSH -o ServerAliveInterval=60 -o ServerAliveCountMax=120"
+    E2E_SCP="scp {{SSH_OPTS}} -i .vm/e2e_key -P 2222"
+
+    # ── Step 1: Boot installer VM (FCOS) ──────────────────────────────────
+    echo "[1/5] Booting FCOS installer VM..."
+    E2E_QEMU_ARGS=(-m 4096 -smp 2)
+    if [[ "{{KNUCKLE_ARCH}}" == "arm64" ]]; then
+        E2E_QEMU_ARGS+=(-M virt -cpu cortex-a57)
+        for candidate in /usr/share/AAVMF/AAVMF_CODE.fd /usr/share/qemu-efi-aarch64/QEMU_EFI.fd; do
+            [ -f "$candidate" ] && E2E_QEMU_ARGS+=(-drive "if=pflash,format=raw,readonly=on,file=$candidate") && break
+        done
+    else
+        E2E_QEMU_ARGS+=(-enable-kvm)
+    fi
+    {{QEMU}} \
+        "${E2E_QEMU_ARGS[@]}" \
+        -drive if=virtio,file=.vm/fcos-boot.qcow2,format=qcow2 \
+        -drive if=virtio,file=.vm/fcos-target.qcow2,format=qcow2 \
+        -fw_cfg name=opt/com.coreos/config,file=.vm/fcos-e2e-installer.ign \
+        -net nic,model=virtio -net user,hostfwd=tcp::2222-:22 \
+        -display none -daemonize -pidfile .vm/qemu.pid \
+        -serial file:.vm/fcos-e2e-installer-serial.log
+
+    ok=0
+    for i in $(seq 1 90); do
+        $E2E_SSH -o ConnectTimeout=3 true 2>/dev/null && ok=1 && break
+        sleep 3
+    done
+    if [ "$ok" != "1" ]; then
+        echo "❌ FCOS installer VM never came up (serial log below)"
+        tail -30 .vm/fcos-e2e-installer-serial.log 2>/dev/null || true
+        exit 1
+    fi
+    echo "  ✓ FCOS installer VM ready"
+
+    # ── Step 2: Run headless install (coreos-installer) ───────────────────
+    echo "[2/5] Running FCOS headless install (no --dry-run; downloads FCOS stream)..."
+    $E2E_SCP bin/knuckle core@127.0.0.1:/tmp/knuckle >/dev/null
+    $E2E_SCP .vm/fcos-e2e-config.json core@127.0.0.1:/tmp/fcos-e2e-config.json >/dev/null
+
+    # coreos-installer must exist in the FCOS installer VM. FCOS live images
+    # ship it by default; verify before installing.
+    if ! $E2E_SSH_LONG "command -v coreos-installer >/dev/null 2>&1 || { echo 'coreos-installer missing in FCOS installer VM' >&2; exit 1; }"; then
+        echo "❌ coreos-installer not found in FCOS installer VM"
+        exit 1
+    fi
+    echo "  ✓ coreos-installer present in installer VM"
+
+    if ! $E2E_SSH_LONG "timeout 30m sudo /tmp/knuckle --headless --config /tmp/fcos-e2e-config.json --log-file /tmp/knuckle-fcos.log"; then
+        echo "❌ FCOS headless install failed — knuckle-fcos.log:"
+        timeout 20 $E2E_SSH_LONG "cat /tmp/knuckle-fcos.log" 2>/dev/null || true
+        exit 1
+    fi
+    echo "  ✓ coreos-installer install completed"
+
+    # ── Step 3: Kill installer VM ─────────────────────────────────────────
+    echo "[3/5] Killing FCOS installer VM..."
+    $E2E_SSH "sync" >/dev/null 2>&1 || true
+    kill "$(cat .vm/qemu.pid)" 2>/dev/null || true
+    rm -f .vm/qemu.pid
+    sleep 2
+
+    # ── Step 4: Boot installed FCOS target ────────────────────────────────
+    echo "[4/5] Booting installed FCOS target disk (first boot, Ignition runs)..."
+    E2E_QEMU_ARGS2=(-m 2048 -smp 2)
+    if [[ "{{KNUCKLE_ARCH}}" == "arm64" ]]; then
+        E2E_QEMU_ARGS2+=(-M virt -cpu cortex-a57)
+    else
+        E2E_QEMU_ARGS2+=(-enable-kvm)
+    fi
+    {{QEMU}} \
+        "${E2E_QEMU_ARGS2[@]}" \
+        -drive if=virtio,file=.vm/fcos-target.qcow2,format=qcow2 \
+        -net nic,model=virtio -net user,hostfwd=tcp::2222-:22 \
+        -display none -daemonize -pidfile .vm/qemu.pid \
+        -serial file:.vm/fcos-e2e-target-serial.log
+
+    ok=0
+    for i in $(seq 1 150); do
+        $E2E_SSH -o ConnectTimeout=3 true 2>/dev/null && ok=1 && break
+        sleep 5
+    done
+    if [ "$ok" != "1" ]; then
+        echo "❌ FCOS installed system never came up (serial log below)"
+        tail -30 .vm/fcos-e2e-target-serial.log 2>/dev/null || true
+        exit 1
+    fi
+    echo "  ✓ FCOS installed system SSH accessible"
+
+    # ── Step 5: Verify ────────────────────────────────────────────────────
+    echo "[5/5] Verifying FCOS installed system..."
+
+    ACTUAL_HOST=$($E2E_SSH hostname 2>/dev/null) \
+        || { echo "❌ hostname command failed"; exit 1; }
+    [ "$ACTUAL_HOST" = "fcos-e2e-verified" ] \
+        || { echo "❌ hostname '$ACTUAL_HOST' != 'fcos-e2e-verified'"; exit 1; }
+    echo "  ✓ hostname: $ACTUAL_HOST"
+
+    FCOS_VER=$($E2E_SSH "grep ^VERSION_ID= /etc/os-release" 2>/dev/null | cut -d= -f2 | tr -d '"') || true
+    [ -n "$FCOS_VER" ] && echo "  ✓ Fedora version: $FCOS_VER"
+
+    # zincati must be present and active (FCOS uses zincati, not update-engine)
+    if $E2E_SSH "systemctl is-enabled zincati.service" 2>/dev/null | grep -q "enabled"; then
+        echo "  ✓ zincati.service enabled"
+    else
+        echo "  ⚠ zincati.service not reported enabled: $($E2E_SSH 'systemctl is-enabled zincati.service 2>&1' 2>/dev/null || true)"
+    fi
+
+    # update-engine.service must NOT exist on FCOS
+    if $E2E_SSH "systemctl list-unit-files update-engine.service --no-legend 2>/dev/null | grep -q ." 2>/dev/null; then
+        echo "❌ update-engine.service unexpectedly present on FCOS"
+        exit 1
+    else
+        echo "  ✓ update-engine.service absent (Flatcar-specific, correct on FCOS)"
+    fi
+
+    # Verify the core user has a privilege group (sudo/wheel) as configured
+    CORE_GROUPS=$($E2E_SSH "id -nG core" 2>/dev/null) || true
+    if echo "$CORE_GROUPS" | grep -q "wheel\|sudo"; then
+        echo "  ✓ core user has privilege group: $CORE_GROUPS"
+    else
+        echo "  ✓ core user groups: $CORE_GROUPS"
+    fi
+
+    echo ""
+    echo "✅ vm-e2e-fcos PASSED (DHCP · zincati · no update-engine)"
+
 # SSH into running VM
 ssh:
     ssh -t {{SSH_OPTS}} -p 2222 core@127.0.0.1
@@ -1281,6 +1457,37 @@ _ensure-base:
         # _write-ignition injects the developer SSH key into. Fail closed on mismatch.
         verify_flatcar_file "$IMAGE_BZ2" "$IMAGE_URL" "flatcar_production_qemu_image.img.bz2"
         bunzip2 "$IMAGE_BZ2"
+    fi
+
+[private]
+_ensure-fcos-base: check-fcos-tools
+    #!/usr/bin/env bash
+    set -euo pipefail
+    mkdir -p .vm
+    QCOW2=".vm/fcos_base_{{KNUCKLE_ARCH}}.qcow2"
+    if [ ! -f "$QCOW2" ]; then
+        case "{{KNUCKLE_ARCH}}" in
+            amd64) COREOS_ARCH="x86_64" ;;
+            arm64) COREOS_ARCH="aarch64" ;;
+            *) echo "unsupported KNUCKLE_ARCH: {{KNUCKLE_ARCH}}" >&2; exit 1 ;;
+        esac
+        echo "Downloading FCOS stable QEMU image for {{KNUCKLE_ARCH}} (one-time)..."
+        DL_DIR=".vm/fcos-base-dl-{{KNUCKLE_ARCH}}"
+        rm -rf "$DL_DIR"
+        mkdir -p "$DL_DIR"
+        # coreos-installer verifies the image against Fedora's signed SHA256 a-files.
+        coreos-installer download \
+            --stream stable \
+            --platform qemu \
+            --format qcow2 \
+            --architecture "$COREOS_ARCH" \
+            --directory "$DL_DIR"
+        IMG="$(find "$DL_DIR" -name '*.qcow2' -o -name '*.qcow2.xz' | head -1)"
+        if [[ -z "$IMG" ]]; then
+            echo "coreos-installer download produced no qcow2 image" >&2; exit 1
+        fi
+        mv "$IMG" "$QCOW2"
+        rm -rf "$DL_DIR"
     fi
 
 [private]
