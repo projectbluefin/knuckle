@@ -630,16 +630,10 @@ func (m *Model) viewOSPicker() string {
 
 	b.WriteString("  Select an operating system:\n\n")
 
-	type osOption struct {
-		id   string
-		name string
-		desc string
-	}
-	options := []osOption{
-		{model.OSFlatcar, "Flatcar Container Linux", "Immutable, container-optimised Linux. Ideal for Kubernetes nodes and edge workloads."},
-		{model.OSFCOS, "Fedora CoreOS", "Fedora's immutable, auto-updating container host. Based on rpm-ostree with Ignition provisioning."},
-		{model.OSBluefinDDI, "Install Bluefin Server", "systemd-native DDI image installer. Partitions, provisions users, and installs the bootloader via systemd-repart."},
-	}
+	// Roster and order come from model.OSTargets(); the picker cursor indexes
+	// the same slice in handleEnter, so the card shown and the OS selected
+	// cannot drift apart.
+	options := model.OSTargets()
 
 	for i, opt := range options {
 		selected := i == m.cursor
@@ -652,8 +646,8 @@ func (m *Model) viewOSPicker() string {
 		}
 
 		var card strings.Builder
-		card.WriteString(cursor + nameStyle.Render(opt.name) + "\n")
-		card.WriteString("  " + descStyle.Render(opt.desc))
+		card.WriteString(cursor + nameStyle.Render(opt.Name) + "\n")
+		card.WriteString("  " + descStyle.Render(opt.Description))
 
 		if selected {
 			b.WriteString(selectedBorder.Render(card.String()))
