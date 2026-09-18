@@ -481,9 +481,9 @@ vm-e2e:
     rm -f .vm/boot.qcow2
     qemu-img create -f qcow2 -b "$(pwd)/.vm/flatcar_base_{{KNUCKLE_ARCH}}.img" -F qcow2 .vm/boot.qcow2 >/dev/null
 
-    # Detect interface name from the running Flatcar image (virtio-net → ens3 or eth0)
-    # Write headless config with static network using QEMU slirp addresses
-    printf '{"channel":"stable","hostname":"e2e-static","timezone":"UTC","network":{"mode":"static","interface":"ens3","address":"10.0.2.15/24","gateway":"10.0.2.2"},"users":[{"username":"core","ssh_keys":["%s"]}],"disk":"/dev/vdb","update_strategy":"off","reboot":false}\n' \
+    # Flatcar names the QEMU virtio-net device eth0 (not ens3). Write headless
+    # config with static network using QEMU slirp addresses.
+    printf '{"channel":"stable","hostname":"e2e-static","timezone":"UTC","network":{"mode":"static","interface":"eth0","address":"10.0.2.15/24","gateway":"10.0.2.2"},"users":[{"username":"core","ssh_keys":["%s"]}],"disk":"/dev/vdb","update_strategy":"off","reboot":false}\n' \
         "$E2E_PUB" > .vm/e2e-static-config.json
 
     echo "[1/4] Booting installer VM (static network pass)..."
