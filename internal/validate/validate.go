@@ -258,14 +258,8 @@ func CheckConsistency(cfg *model.InstallConfig) error {
 	}
 	// Static network requires gateway and interface
 	if cfg.Network.Mode == model.NetworkStatic {
-		if cfg.Network.Gateway == "" {
-			return fmt.Errorf("static network requires a gateway")
-		}
-		if cfg.Network.Interface == "" {
-			return fmt.Errorf("static network requires an interface name")
-		}
-		if cfg.Network.Address == "" {
-			return fmt.Errorf("static network requires an IP address")
+		if err := StaticNetwork(cfg.Network); err != nil {
+			return err
 		}
 	}
 	// Must have at least one auth method; reject duplicate usernames
@@ -310,6 +304,40 @@ func CheckConsistency(cfg *model.InstallConfig) error {
 		}
 	}
 
+	return nil
+}
+
+// StaticNetwork validates a static-mode network configuration: interface,
+// address and gateway are all required and must be well-formed, and every
+// DNS server must be a valid IP address. It is the single source of truth
+// for the static-network contract — consumed by the wizard network step,
+// headless config validation, and CheckConsistency.
+func StaticNetwork(n model.NetworkConfig) error {
+	// Presence checks keep CheckConsistency's original gateway/interface/address
+	// order so existing error expectations are preserved.
+	if n.Gateway == "" {
+		return fmt.Errorf("static network requires a gateway")
+	}
+	if n.Interface == "" {
+		return fmt.Errorf("static network requires an interface name")
+	}
+	if n.Address == "" {
+		return fmt.Errorf("static network requires an IP address")
+	}
+	if err := InterfaceName(n.Interface); err != nil {
+		return fmt.Errorf("network interface: %w", err)
+	}
+	if err := CIDR(n.Address); err != nil {
+		return fmt.Errorf("network address: %w", err)
+	}
+	if err := Gateway(n.Gateway); err != nil {
+		return fmt.Errorf("gateway: %w", err)
+	}
+	for _, dns := range n.DNS {
+		if err := DNSServer(dns); err != nil {
+			return fmt.Errorf("DNS server %q: %w", dns, err)
+		}
+	}
 	return nil
 }
 
