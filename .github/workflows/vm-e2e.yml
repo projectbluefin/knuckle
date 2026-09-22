@@ -48,10 +48,12 @@ jobs:
         id: cache-flatcar
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
-          path: .vm/flatcar_base_amd64.img
-          key: flatcar-qemu-stable-amd64-${{ steps.flatcar-version.outputs.version }}
+          path: |
+            .vm/flatcar_base_amd64.img
+            .vm/flatcar_base_amd64.img.sha256
+          key: flatcar-qemu-stable-amd64-v2-${{ steps.flatcar-version.outputs.version }}
           restore-keys: |
-            flatcar-qemu-stable-amd64-
+            flatcar-qemu-stable-amd64-v2-
 
       - name: Download + verify Flatcar base image
         if: steps.cache-flatcar.outputs.cache-hit != 'true'
@@ -59,7 +61,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p .vm
-          IMAGE_URL="https://stable.release.flatcar-linux.net/amd64-usr/current/flatcar_production_qemu_image.img.bz2"
+          VERSION="${{ steps.flatcar-version.outputs.version }}"
+          IMAGE_URL="https://stable.release.flatcar-linux.net/amd64-usr/${VERSION}/flatcar_production_qemu_image.img.bz2"
           curl -fsSL -o .vm/flatcar_base_amd64.img.bz2 "$IMAGE_URL"
           # Fail-closed integrity check: GPG-verify the clearsigned .DIGESTS.asc
           # against the embedded Flatcar signing key, then check the SHA512 of
@@ -71,7 +74,8 @@ jobs:
           export REQUIRE_VERIFICATION=1
           source scripts/lib/verify-flatcar.sh
           verify_flatcar_file ".vm/flatcar_base_amd64.img.bz2" "$IMAGE_URL" "flatcar_production_qemu_image.img.bz2"
-          bunzip2 .vm/flatcar_base_amd64.img.bz2
+          bunzip2 -f .vm/flatcar_base_amd64.img.bz2
+          sha256sum .vm/flatcar_base_amd64.img > .vm/flatcar_base_amd64.img.sha256
 
   dhcp:
     needs: [prepare]
@@ -112,10 +116,18 @@ jobs:
       - name: Restore Flatcar base image
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
-          path: .vm/flatcar_base_amd64.img
-          key: flatcar-qemu-stable-amd64-${{ needs.prepare.outputs.flatcar-version }}
+          path: |
+            .vm/flatcar_base_amd64.img
+            .vm/flatcar_base_amd64.img.sha256
+          key: flatcar-qemu-stable-amd64-v2-${{ needs.prepare.outputs.flatcar-version }}
           restore-keys: |
-            flatcar-qemu-stable-amd64-
+            flatcar-qemu-stable-amd64-v2-
+
+      - name: Verify cached Flatcar base image
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum -c .vm/flatcar_base_amd64.img.sha256
 
       - name: Generate ephemeral SSH keypair
         id: ssh-key
@@ -244,10 +256,18 @@ jobs:
       - name: Restore Flatcar base image
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
-          path: .vm/flatcar_base_amd64.img
-          key: flatcar-qemu-stable-amd64-${{ needs.prepare.outputs.flatcar-version }}
+          path: |
+            .vm/flatcar_base_amd64.img
+            .vm/flatcar_base_amd64.img.sha256
+          key: flatcar-qemu-stable-amd64-v2-${{ needs.prepare.outputs.flatcar-version }}
           restore-keys: |
-            flatcar-qemu-stable-amd64-
+            flatcar-qemu-stable-amd64-v2-
+
+      - name: Verify cached Flatcar base image
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum -c .vm/flatcar_base_amd64.img.sha256
 
       - name: Generate ephemeral SSH keypair
         id: ssh-key
@@ -386,10 +406,18 @@ jobs:
       - name: Restore Flatcar base image
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
-          path: .vm/flatcar_base_amd64.img
-          key: flatcar-qemu-stable-amd64-${{ needs.prepare.outputs.flatcar-version }}
+          path: |
+            .vm/flatcar_base_amd64.img
+            .vm/flatcar_base_amd64.img.sha256
+          key: flatcar-qemu-stable-amd64-v2-${{ needs.prepare.outputs.flatcar-version }}
           restore-keys: |
-            flatcar-qemu-stable-amd64-
+            flatcar-qemu-stable-amd64-v2-
+
+      - name: Verify cached Flatcar base image
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum -c .vm/flatcar_base_amd64.img.sha256
 
       - name: Generate ephemeral SSH keypair
         id: ssh-key
@@ -529,10 +557,18 @@ jobs:
       - name: Restore Flatcar base image
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
-          path: .vm/flatcar_base_amd64.img
-          key: flatcar-qemu-stable-amd64-${{ needs.prepare.outputs.flatcar-version }}
+          path: |
+            .vm/flatcar_base_amd64.img
+            .vm/flatcar_base_amd64.img.sha256
+          key: flatcar-qemu-stable-amd64-v2-${{ needs.prepare.outputs.flatcar-version }}
           restore-keys: |
-            flatcar-qemu-stable-amd64-
+            flatcar-qemu-stable-amd64-v2-
+
+      - name: Verify cached Flatcar base image
+        shell: bash
+        run: |
+          set -euo pipefail
+          sha256sum -c .vm/flatcar_base_amd64.img.sha256
 
       - name: Generate ephemeral SSH keypair
         id: ssh-key
