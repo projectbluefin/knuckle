@@ -1219,6 +1219,7 @@ shell-lint: _install-shellcheck
     {{SHELLCHECK}} --severity=warning \
       scripts/qa-test-pr.sh \
       scripts/build-iso.sh \
+      scripts/lib/verify-flatcar.sh \
       scripts/lib/vm-kubevirt.sh \
       scripts/fix-ghost-otel-process-noise.sh \
       scripts/nvidia_check.sh \
