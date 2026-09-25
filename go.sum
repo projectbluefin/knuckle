@@ -10,8 +10,8 @@ github.com/MakeNowJust/heredoc v1.0.0 h1:cXCdzVdstXyiTqTvfqk9SDHpKNjxuom+DOlyEeQ
 github.com/MakeNowJust/heredoc v1.0.0/go.mod h1:mG5amYoWBHf8vpLOuehzbGGw0EHxpZZ6lCpQ4fNJ8LE=
 github.com/NVIDIA/go-nvlib v0.12.0 h1:LICVlUGlDnpbwQv64rOZQn11xQae1J+c+dvH9CCi7jc=
 github.com/NVIDIA/go-nvlib v0.12.0/go.mod h1:J5M/QPIJJtaipjdONqevSnfgBlkW49uVWX5cFOoQpoA=
-github.com/ProtonMail/go-crypto v1.4.1 h1:9RfcZHqEQUvP8RzecWEUafnZVtEvrBVL9BiF67IQOfM=
-github.com/ProtonMail/go-crypto v1.4.1/go.mod h1:e1OaTyu5SYVrO9gKOEhTc+5UcXtTUa+P3uLudwcgPqo=
+github.com/ProtonMail/go-crypto v1.5.0 h1:sKmuvjOgsnrtpMvZ+84MCnTJCpjxZ1qCFn076lz1yT0=
+github.com/ProtonMail/go-crypto v1.5.0/go.mod h1:/RaSu30DaKO4RY+XdV/ACcCcZkGr7AhUIduq5sjzzCo=
 github.com/atotto/clipboard v0.1.4 h1:EH0zSVneZPSuFR11BlR9YppQTVDbh5+16AmcJi4g1z4=
 github.com/atotto/clipboard v0.1.4/go.mod h1:ZY9tmq7sm5xIbd9bOK4onWV4S6X0u6GY7Vn0Yu86PYI=
 github.com/aws/aws-sdk-go-v2 v1.41.1 h1:ABlyEARCDLN034NhxlRUSZr4l71mh+T5KAeGh6cerhU=
