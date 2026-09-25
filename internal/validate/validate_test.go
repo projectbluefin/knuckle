@@ -817,6 +817,51 @@ func TestDNSServer(t *testing.T) {
 	}
 }
 
+func TestStaticNetwork(t *testing.T) {
+	good := model.NetworkConfig{
+		Mode:      model.NetworkStatic,
+		Interface: "eth0",
+		Address:   "192.168.1.10/24",
+		Gateway:   "192.168.1.1",
+		DNS:       []string{"1.1.1.1", "8.8.8.8"},
+	}
+	tests := []struct {
+		name    string
+		mutate  func(n *model.NetworkConfig)
+		wantErr string
+	}{
+		{"valid", func(n *model.NetworkConfig) {}, ""},
+		{"valid without DNS", func(n *model.NetworkConfig) { n.DNS = nil }, ""},
+		{"missing gateway", func(n *model.NetworkConfig) { n.Gateway = "" }, "static network requires a gateway"},
+		{"missing interface", func(n *model.NetworkConfig) { n.Interface = "" }, "static network requires an interface name"},
+		{"missing address", func(n *model.NetworkConfig) { n.Address = "" }, "static network requires an IP address"},
+		{"bad interface name", func(n *model.NetworkConfig) { n.Interface = "eth 0" }, "network interface:"},
+		{"bad address", func(n *model.NetworkConfig) { n.Address = "192.168.1.10" }, "network address:"},
+		{"bad gateway", func(n *model.NetworkConfig) { n.Gateway = "not-an-ip" }, "gateway:"},
+		{"bad DNS server", func(n *model.NetworkConfig) { n.DNS = []string{"1.1.1.1", "not-dns"} }, `DNS server "not-dns":`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			n := good
+			n.DNS = append([]string(nil), good.DNS...)
+			tt.mutate(&n)
+			err := StaticNetwork(n)
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatalf("StaticNetwork(%+v) unexpected error: %v", n, err)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("StaticNetwork(%+v) expected error containing %q, got nil", n, tt.wantErr)
+			}
+			if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("StaticNetwork(%+v) error = %q, want it to contain %q", n, err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestTailscaleAuthKey(t *testing.T) {
 	tests := []struct {
 		name    string
