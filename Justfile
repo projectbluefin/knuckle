@@ -923,14 +923,11 @@ vm-e2e-fcos:
     fi
 
     # update-engine.service must NOT exist on FCOS
-    UPDATE_ENGINE_UNITS=$($E2E_SSH "systemctl list-unit-files update-engine.service --no-legend 2>&1") \
-        || { echo "❌ SSH check for update-engine.service failed: $UPDATE_ENGINE_UNITS"; exit 1; }
-    if echo "$UPDATE_ENGINE_UNITS" | grep -q .; then
-        echo "❌ update-engine.service unexpectedly present on FCOS: $UPDATE_ENGINE_UNITS"
-        exit 1
-    else
-        echo "  ✓ update-engine.service absent (Flatcar-specific, correct on FCOS)"
-    fi
+    UPDATE_ENGINE=$($E2E_SSH "if systemctl list-unit-files update-engine.service --no-legend | grep -q .; then echo present; else echo absent; fi") \
+        || { echo "❌ SSH check for update-engine.service failed"; exit 1; }
+    [ "$UPDATE_ENGINE" = absent ] \
+        || { echo "❌ update-engine.service unexpectedly present on FCOS"; exit 1; }
+    echo "  ✓ update-engine.service absent (Flatcar-specific, correct on FCOS)"
 
     # Verify the core user has a privilege group (sudo/wheel) as configured
     CORE_GROUPS=$($E2E_SSH "id -nG core" 2>&1) \
