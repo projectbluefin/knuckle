@@ -1491,11 +1491,11 @@ _ensure-fcos-base: check-fcos-tools
         coreos-installer download \
             --stream stable \
             --platform qemu \
-            --format qcow2 \
+            --format qcow2.xz \
             --decompress \
             --architecture "$COREOS_ARCH" \
             --directory "$DL_DIR"
-        IMG="$(ls "$DL_DIR"/*.qcow2 2>/dev/null | head -1)"
+        IMG="$(ls "$DL_DIR"/*.qcow2 2>/dev/null | head -1 || true)"
         if [[ -z "$IMG" ]]; then
             echo "coreos-installer download produced no qcow2 image" >&2; exit 1
         fi
