@@ -12,7 +12,7 @@ require (
 	github.com/charmbracelet/x/term v0.2.2
 	github.com/coreos/butane v0.29.0
 	github.com/coreos/vcontext v0.0.0-20260306102053-7a68b5426c74
-	golang.org/x/crypto v0.55.0
+	golang.org/x/crypto v0.57.0
 )
 
 require (
