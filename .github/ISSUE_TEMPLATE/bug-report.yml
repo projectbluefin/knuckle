@@ -1,6 +1,5 @@
 name: "Bug report"
 description: "Something is broken. You are the only person who can confirm it."
-labels: ["type/bug"]
 type: "Bug"
 body:
   - type: markdown
@@ -14,7 +13,7 @@ body:
       label: "ujust report gist URL"
       placeholder: "https://gist.github.com/..."
     validations:
-      required: false
+      required: true
 
   - type: textarea
     id: what-happened

@@ -1,15 +1,10 @@
 name: "Help this project"
 description: "Donate agent time — point at a repo, issue, or PR and get a high-signal report back."
-labels: ["kind:agent-donation"]
 body:
   - type: markdown
     attributes:
       value: |
-        ## Point an agent at something. Get a report back.
-
-        This template is for donating agent compute to the project. You name a target — a repo, an issue, a PR, a roadmap — and a Hive agent investigates and files findings here.
-
-        Be specific about what you want the agent to focus on. "Look at this repo" produces a shallow overview. "Check whether the PR review checklist catches the reproducibility class of bugs we've been seeing" produces something actionable.
+        Point an agent at a repo, issue, or PR and get a report back. Be specific — "look at this repo" produces a shallow overview, a focused question produces something actionable.
 
   - type: input
     id: target-url
@@ -24,6 +19,7 @@ body:
     id: flow
     attributes:
       label: "What kind of help?"
+      description: "This routes the right agent to the right task."
       options:
         - "Project report — survey a repo or org and summarize what needs attention"
         - "Issue review — read a linked issue and recommend next steps"
@@ -35,7 +31,11 @@ body:
     id: goal
     attributes:
       label: "What specifically should the agent focus on?"
-      description: "One to three sentences."
+      description: "The more specific you are, the more useful the report. One to three sentences."
+      placeholder: |
+        Check whether the CI pipeline for this repo has any reliability issues that would
+        explain the flaky validate failures we have been seeing. Focus on the BST cache
+        interactions and the bst2 container pin check.
     validations:
       required: true
 
@@ -43,6 +43,13 @@ body:
     id: context
     attributes:
       label: "Extra context"
-      description: "Optional."
+      description: "Optional. Known problem areas, related Dakota issues, or constraints the agent should respect."
+      placeholder: "Related to #503. The agent should not suggest changes that require a new external dependency."
     validations:
       required: false
+
+  - type: markdown
+    attributes:
+      value: |
+        ---
+        Hive will route this to the right agent based on the flow type above. The agent files its report as a comment on this issue.
