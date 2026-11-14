@@ -75,9 +75,15 @@ just tools && just ci   # verify after bump
 
 ## Go Toolchain Bumps
 
-Update all **three** locations together:
-- `go.mod`: `go X.Y.Z` line AND `toolchain goX.Y.Z` line
-- `.github/workflows/ci.yml`: `go-version: "X.Y.Z"` (two occurrences)
+Update the `go.mod` minimum and every `actions/setup-go` declaration together,
+including CI, nightly, security, release, and VM E2E workflows. A matching
+`toolchain` directive is redundant when the `go` directive already requires the
+same patch release.
+
+Use current failed-run logs to select the fixed patch version: old green PR
+checks do not prove the current vulnerability database is satisfied. For example,
+GO-2026-6809 requires Go 1.26.10 and GO-2026-6859 requires Go 1.26.11; the
+previous 1.26.9 bump no longer covers these findings.
 
 `govulncheck` gates on stdlib CVEs — a stale Go version fails even with no app-level vulns.
 
